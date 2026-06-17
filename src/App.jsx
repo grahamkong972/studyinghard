@@ -192,7 +192,7 @@ const validateAndFixData = (data, type) => {
             return {
                 id: item.id || Math.random().toString(36).substr(2, 9),
                 q: String(item.q || "Error: Question missing"),
-                a: String(item.a || "Error: Answer missing"),
+                a: (() => { const v = String(item.a || 'Error: Answer missing'); return v.length > 200 ? v.slice(0, 200) + '…' : v; })(),
                 nextReview: item.nextReview || null,
                 ease: item.ease || 2.5,
                 interval: item.interval || 0,
@@ -201,15 +201,15 @@ const validateAndFixData = (data, type) => {
         }
         if (type === 'mcq' || type === 'exam') {
             let options = item.options;
-            if (!options || !Array.isArray(options)) options = ["True", "False"]; 
-            options = options.map(opt => String(opt));
-            
+            if (!options || !Array.isArray(options)) options = ["True", "False"];
+            options = options.map(opt => { const s = String(opt); return s.length > 100 ? s.slice(0, 100) + '…' : s; });
+
             return {
                 type: 'mcq',
                 q: String(item.q || "Error: Question missing"),
                 options: options,
-                a: (typeof item.a === 'number' && item.a < options.length) ? item.a : 0, 
-                exp: String(item.exp || "No explanation provided.")
+                a: (typeof item.a === 'number' && item.a < options.length) ? item.a : 0,
+                exp: (() => { const v = String(item.exp || 'No explanation provided.'); return v.length > 300 ? v.slice(0, 300) + '…' : v; })()
             };
         }
         if (type === 'saq') {
@@ -421,15 +421,33 @@ const generateForDeck = async (prompt, systemInstruction, contextHistory, contex
 };
 
 // --- GEMINI AI SERVICE (Refactored to use Vercel Proxy) ---
-const generateContent = async (prompt, context, systemInstruction, attachmentData = null, quantity = 1) => {
+const generateContent = async (prompt, context, systemInstruction, attachmentData = null, quantity = 1, contentType = 'flashcards') => {
     // The apiKey check is now removed from the client side.
     
     // Define the client-side proxy endpoint
-    const PROXY_URL = `/api/generate-ai-content`; 
-    
+    const PROXY_URL = `/api/generate-ai-content`;
+
+    const contentConstraints = {
+        flashcards: `FLASHCARD OUTPUT CONSTRAINTS (MANDATORY):
+        - "q": Exactly 1 concept or 1 sentence. No compound questions. Max 20 words.
+        - "a": Max 3 bullet points using • OR under 30 words total. NO paragraphs.`,
+        mcq: `MCQ OUTPUT CONSTRAINTS (MANDATORY):
+        - "q": Scenario- or application-based question. Max 30 words. No trivial recall.
+        - "options": Exactly 4 options, each under 15 words, highly distinguishable.
+        - "exp": Exactly 1-2 sentences — WHY correct answer is right and why top distractor is wrong.`,
+        saq: `SAQ OUTPUT CONSTRAINTS (MANDATORY):
+        - "q": Direct, specific question. Max 25 words.
+        - "model": Structured model answer with 2-4 key points. Under 80 words total.
+        - "marks": Integer between 2 and 7 reflecting complexity.`,
+        exam: `EXAM MCQ OUTPUT CONSTRAINTS (MANDATORY):
+        - "q": Hard, scenario-based question. Max 30 words.
+        - "options": Exactly 4 options, each under 15 words, highly distinguishable.
+        - "exp": Exactly 1-2 sentences — WHY correct answer is right and top distractor is wrong.`,
+    };
     const fullSystemPrompt = `
-        You are KonDeck, an advanced AI tutor.
+        You are KonDeck, an advanced AI tutor. Be concise and precise.
         ${systemInstruction || ''}
+        ${contentConstraints[contentType] || ''}
         CRITICAL OUTPUT RULES:
         1. Return ONLY valid JSON.
         2. Do NOT use markdown code blocks.
@@ -438,6 +456,7 @@ const generateContent = async (prompt, context, systemInstruction, attachmentDat
         5. Use MARKDOWN for text formatting (e.g. **bold**).
         6. Use LaTeX ($...$) ONLY for mathematical formulas.
     `;
+    const maxTokensByType = { flashcards: 800, mcq: 1200, saq: 1000, exam: 1200 };
 
     // Send context and task as separate parts so the server can cache the context block
     const contentsPart = [];
@@ -450,7 +469,11 @@ const generateContent = async (prompt, context, systemInstruction, attachmentDat
 
     const requestBody = {
         contents: [{ parts: contentsPart }],
-        system_instruction: { parts: [{ text: fullSystemPrompt }] }
+        system_instruction: { parts: [{ text: fullSystemPrompt }] },
+        generationConfig: {
+            responseMimeType: "application/json",
+            maxOutputTokens: maxTokensByType[contentType] || 1000
+        }
     };
     
     // The key is now handled by the proxy function on the server
@@ -876,6 +899,82 @@ const ExamSetupModal = ({ modules, onClose, onStartExam }) => {
 };
 
 // --- NEW MODAL: UPGRADE MODAL ---
+const UpgradeModal = ({ isOpen, onClose, onUpgrade }) => {
+    const [upgradeCode, setUpgradeCode] = useState("");
+    const [error, setError] = useState("");
+
+    if (!isOpen) return null;
+
+    const handleUpgradeClick = (e) => {
+        e.preventDefault();
+        setError("");
+        if (!upgradeCode.trim()) {
+            return setError("Please enter the upgrade code.");
+        }
+        onUpgrade(upgradeCode);
+    };
+
+    const features = [
+        { icon: <Folder size={20} className="text-red-500"/>, free: '1 Subject/Folder', pro: 'Unlimited Subjects/Folders', key: 'subjects' },
+        { icon: <Sparkles size={20} className="text-amber-500"/>, free: 'Limited AI Credits (180/mo)', pro: 'Boosted AI Credits (3000/mo)', key: 'credits' },
+        { icon: <Brain size={20} className="text-indigo-500"/>, free: 'Standard Flashcard & Quiz', pro: 'Smart Spaced Repetition (SRS)', key: 'srs' },
+        { icon: <PenTool size={20} className="text-purple-500"/>, free: 'Manual SAQ Grading', pro: 'AI Short Answer Grading', key: 'saq-grade' },
+        { icon: <PieChart size={20} className="text-emerald-500"/>, free: 'No Syllabus Analysis', pro: 'Syllabus Coverage Analysis', key: 'analysis' },
+    ];
+    return (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col">
+                <div className="flex justify-between items-center p-6 border-b">
+                    <h3 className="font-bold text-2xl text-slate-800 flex items-center gap-2">🚀 Upgrade to Pro</h3>
+                    <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition"><X size={24}/></button>
+                </div>
+                <div className="p-8 flex-1 overflow-y-auto">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div className="bg-slate-50 p-6 rounded-xl border border-slate-200 flex flex-col">
+                            <h4 className="text-xl font-bold text-slate-800 mb-2">Free Plan</h4>
+                            <p className="text-sm text-slate-500 mb-6">A great start for hobbyists learning a single subject.</p>
+                            <div className="flex-1 space-y-4">
+                                {features.map((f) => (
+                                    <div key={f.key} className="flex items-start gap-3">
+                                        {f.icon}
+                                        <span className="text-sm text-slate-700">{f.free}</span>
+                                    </div>
+                                ))}
+                            </div>
+                            <button disabled className="mt-6 w-full py-3 bg-slate-300 text-slate-600 font-bold rounded-lg text-lg">Current Plan</button>
+                        </div>
+                        <div className="bg-white p-6 rounded-xl border-4 border-amber-400 shadow-xl flex flex-col">
+                            <div className="self-end px-3 py-1 bg-amber-400 text-white text-xs font-bold rounded-full mb-2">BEST VALUE</div>
+                            <h4 className="text-xl font-bold text-slate-800 mb-2">Pro Plan</h4>
+                            <p className="text-sm text-slate-500 mb-6">Unleash the full power of the AI tutor for your academic career.</p>
+                            <div className="flex-1 space-y-4">
+                                {features.map((f) => (
+                                    <div key={f.key} className="flex items-start gap-3">
+                                        {f.icon}
+                                        <span className="text-sm font-bold text-slate-800">{f.pro}</span>
+                                    </div>
+                                ))}
+                            </div>
+                            <form onSubmit={handleUpgradeClick} className="mt-6 flex flex-col items-center">
+                                <span className="text-4xl font-extrabold text-slate-800">$33.99</span>
+                                <span className="text-sm text-slate-500 mb-4">per month</span>
+                                <input
+                                    type="text"
+                                    placeholder="Enter Upgrade Code..."
+                                    value={upgradeCode}
+                                    onChange={(e) => setUpgradeCode(e.target.value)}
+                                    className="w-full p-3 border border-amber-300 rounded-lg text-sm text-slate-700 font-mono mb-2 focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                                />
+                                {error && <p className="text-red-500 text-xs mb-2">{error}</p>}
+                                <button type="submit" className="w-full py-3 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-lg text-lg transition">Validate & Upgrade</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
 
 // --- EXAM RUNNER ---
 const ExamRunner = ({ questions, timeLimit, onBack, userProfile, practice = false, onRecordResult }) => {
@@ -1604,12 +1703,12 @@ Return ONLY valid JSON: [{
              const combinedContext = `MODULE: ${deck.title}\nNOTES: ${currentInputs.notes}\nTRANSCRIPT: ${currentInputs.transcript}\nSLIDES TEXT: ${currentInputs.slides}`;
              let mcqs = [];
              if(numMCQs > 0) {
-                 const rawMCQ = await generateContent(buildExamMCQPrompt(numMCQs), combinedContext, "", null, numMCQs);
+                 const rawMCQ = await generateContent(buildExamMCQPrompt(numMCQs), combinedContext, "", null, numMCQs, "exam");
                  mcqs = validateAndFixData(Array.isArray(rawMCQ) ? rawMCQ : [rawMCQ], 'mcq');
             }
              let saqs = [];
              if(numSAQs > 0) {
-                 const rawSAQ = await generateContent(buildExamSAQPrompt(numSAQs), combinedContext, "", null, numSAQs);
+                 const rawSAQ = await generateContent(buildExamSAQPrompt(numSAQs), combinedContext, "", null, numSAQs, "saq");
                  saqs = validateAndFixData(Array.isArray(rawSAQ) ? rawSAQ : [rawSAQ], 'saq');
              }
              const finalExam = [...mcqs, ...saqs];
@@ -1812,13 +1911,13 @@ const FolderDashboard = ({ folder, decks, onUpdateFolder, onUpdateDeck, userProf
             
             let mcqs = [];
             if(numMCQs > 0) {
-                 const rawMCQ = await generateContent(buildExamMCQPrompt(numMCQs), combinedContext, "", null, numMCQs);
+                 const rawMCQ = await generateContent(buildExamMCQPrompt(numMCQs), combinedContext, "", null, numMCQs, "exam");
                  mcqs = validateAndFixData(Array.isArray(rawMCQ) ? rawMCQ : [rawMCQ], 'mcq');
             }
 
             let saqs = [];
             if(numSAQs > 0) {
-                 const rawSAQ = await generateContent(buildExamSAQPrompt(numSAQs), combinedContext, "", null, numSAQs);
+                 const rawSAQ = await generateContent(buildExamSAQPrompt(numSAQs), combinedContext, "", null, numSAQs, "saq");
                  saqs = validateAndFixData(Array.isArray(rawSAQ) ? rawSAQ : [rawSAQ], 'saq');
             }
             
@@ -2039,6 +2138,23 @@ function AppInner() {
     
     const openAddFolder = () => setNameModal({ isOpen: true, type: 'create', folder: null, value: '' });
 
+    // NEW: Hardcoded upgrade logic
+    const handleUpgrade = async (code) => {
+        if (code !== "grum#kong") {
+            alert("Invalid upgrade code. Please check the code and try again.");
+            return;
+        }
+
+        setShowUpgradeModal(false);
+        const newSubscription = {
+            tier: 'pro',
+            credits: 3000, // Boosted credits
+            subscriptionId: 'grum#kong', // The requested unique ID
+            lastUpdated: serverTimestamp()
+        };
+        await updateFirestore({ subscription: newSubscription });
+        alert("Upgrade successful! Welcome to KonDeck Pro. Your credits have been boosted to 500/month.");
+    };
 
     const handleLogout = async () => {
         await signOut(auth);
