@@ -790,11 +790,20 @@ const PasteImportModal = ({ onClose, onImport, initialType = 'flashcards' }) => 
     );
 };
 
-const ManageModal = ({ type, items, onClose, onDeleteItem, onDeleteAll }) => {
+const ManageModal = ({ type, items, onClose, onDeleteItem, onDeleteAll, onUpdateItem }) => {
     const [search, setSearch] = useState('');
+    const [editingIndex, setEditingIndex] = useState(null);
+    const [editDraft, setEditDraft] = useState({});
+
     const filtered = search.trim()
         ? items.map((item, i) => ({ item, i })).filter(({ item }) => item.q?.toLowerCase().includes(search.toLowerCase()))
         : items.map((item, i) => ({ item, i }));
+
+    const openEdit = (i, item) => { setEditingIndex(i); setEditDraft({ ...item, options: item.options ? [...item.options] : [] }); };
+    const closeEdit = () => setEditingIndex(null);
+    const saveEdit = () => { onUpdateItem(editingIndex, editDraft); closeEdit(); };
+
+    const fieldClass = "w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white resize-none";
 
     return (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
@@ -810,7 +819,7 @@ const ManageModal = ({ type, items, onClose, onDeleteItem, onDeleteAll }) => {
                     <input
                         type="text"
                         value={search}
-                        onChange={e => setSearch(e.target.value)}
+                        onChange={e => { setSearch(e.target.value); closeEdit(); }}
                         placeholder="Search questions..."
                         className="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 text-slate-700"
                     />
@@ -819,18 +828,66 @@ const ManageModal = ({ type, items, onClose, onDeleteItem, onDeleteAll }) => {
                     {filtered.length === 0 ? <div className="text-center text-slate-400 py-12">{search ? 'No matches found.' : 'No items to show.'}</div> : (
                         <div className="space-y-2">
                             {filtered.map(({ item, i }) => (
-                                <div key={i} className="flex items-start gap-3 p-3 bg-slate-50 rounded-lg border border-slate-100 group hover:border-slate-300 transition">
-                                    <div className="flex flex-col items-center gap-1 mt-1">
-                                        <span className="text-xs font-bold text-slate-400">{i + 1}.</span>
-                                        {type === 'flashcards' && item.nextReview && <div className={`w-2 h-2 rounded-full ${getCardStatus(item).color.replace('text-', 'bg-').split(' ')[0]}`} title={getCardStatus(item).label}></div>}
-                                    </div>
-                                    <div className="flex-1 text-sm text-slate-700">
-                                        <div className="font-medium mb-1"><FormattedText text={item.q} /></div>
-                                        <div className="text-xs text-slate-500 line-clamp-1 opacity-70">
-                                            {type === 'flashcards' ? <FormattedText text={item.a} /> : (type === 'saq' ? 'Model Answer Provided' : 'Multiple Choice')}
+                                <div key={i} className={`p-3 bg-slate-50 rounded-lg border transition ${editingIndex === i ? 'border-indigo-300' : 'border-slate-100 hover:border-slate-300'} group`}>
+                                    {editingIndex === i ? (
+                                        <div className="space-y-2">
+                                            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Question</p>
+                                            <textarea rows={2} value={editDraft.q || ''} onChange={e => setEditDraft(d => ({ ...d, q: e.target.value }))} className={fieldClass}/>
+
+                                            {type === 'flashcards' && <>
+                                                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Answer</p>
+                                                <textarea rows={3} value={editDraft.a || ''} onChange={e => setEditDraft(d => ({ ...d, a: e.target.value }))} className={fieldClass}/>
+                                            </>}
+
+                                            {type === 'quiz' && <>
+                                                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Options — click letter to mark correct</p>
+                                                {[0,1,2,3].map(idx => (
+                                                    <div key={idx} className="flex items-center gap-2">
+                                                        <button onClick={() => setEditDraft(d => ({ ...d, correct: idx }))}
+                                                            className={`w-6 h-6 rounded-full text-xs font-bold shrink-0 transition ${editDraft.correct === idx ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-500 hover:bg-emerald-100'}`}>
+                                                            {String.fromCharCode(65 + idx)}
+                                                        </button>
+                                                        <input value={editDraft.options?.[idx] || ''} onChange={e => setEditDraft(d => {
+                                                            const opts = [...(d.options || ['','','',''])];
+                                                            opts[idx] = e.target.value;
+                                                            return { ...d, options: opts };
+                                                        })} className={fieldClass + ' py-1.5'}/>
+                                                    </div>
+                                                ))}
+                                                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Explanation (optional)</p>
+                                                <textarea rows={2} value={editDraft.explanation || ''} onChange={e => setEditDraft(d => ({ ...d, explanation: e.target.value }))} placeholder="Explanation..." className={fieldClass}/>
+                                            </>}
+
+                                            {type === 'saq' && <>
+                                                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Model Answer</p>
+                                                <textarea rows={3} value={editDraft.model || ''} onChange={e => setEditDraft(d => ({ ...d, model: e.target.value }))} className={fieldClass}/>
+                                                <div className="flex items-center gap-2">
+                                                    <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Marks</p>
+                                                    <input type="number" min="1" max="20" value={editDraft.marks || 5} onChange={e => setEditDraft(d => ({ ...d, marks: Number(e.target.value) }))} className="w-16 text-center border border-slate-200 rounded-lg py-1 text-sm font-bold focus:ring-2 focus:ring-indigo-400 focus:outline-none"/>
+                                                </div>
+                                            </>}
+
+                                            <div className="flex justify-end gap-2 pt-1">
+                                                <button onClick={closeEdit} className="text-xs px-3 py-1.5 text-slate-500 hover:bg-slate-200 rounded-lg transition">Cancel</button>
+                                                <button onClick={saveEdit} className="text-xs px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition font-medium">Save</button>
+                                            </div>
                                         </div>
-                                    </div>
-                                    <button onClick={() => onDeleteItem(i)} className="text-slate-400 hover:text-red-500 p-1 opacity-0 group-hover:opacity-100 transition" title="Delete Item"><Trash2 size={16}/></button>
+                                    ) : (
+                                        <div className="flex items-start gap-3">
+                                            <div className="flex flex-col items-center gap-1 mt-1">
+                                                <span className="text-xs font-bold text-slate-400">{i + 1}.</span>
+                                                {type === 'flashcards' && item.nextReview && <div className={`w-2 h-2 rounded-full ${getCardStatus(item).color.replace('text-', 'bg-').split(' ')[0]}`} title={getCardStatus(item).label}></div>}
+                                            </div>
+                                            <div className="flex-1 text-sm text-slate-700">
+                                                <div className="font-medium mb-1"><FormattedText text={item.q} /></div>
+                                                <div className="text-xs text-slate-500 line-clamp-1 opacity-70">
+                                                    {type === 'flashcards' ? <FormattedText text={item.a} /> : (type === 'saq' ? 'Model Answer Provided' : 'Multiple Choice')}
+                                                </div>
+                                            </div>
+                                            <button onClick={() => openEdit(i, item)} className="text-slate-400 hover:text-indigo-500 p-1 opacity-0 group-hover:opacity-100 transition" title="Edit"><Edit2 size={15}/></button>
+                                            <button onClick={() => onDeleteItem(i)} className="text-slate-400 hover:text-red-500 p-1 opacity-0 group-hover:opacity-100 transition" title="Delete"><Trash2 size={15}/></button>
+                                        </div>
+                                    )}
                                 </div>
                             ))}
                         </div>
@@ -1592,6 +1649,13 @@ const ModuleDashboard = ({ deck, onUpdateDeck, userProfile, onUpdateProfile }) =
         toast(`Deleted all ${manageMode}`, 'info', () => onUpdateDeck({ ...deck, [key]: prev }));
     };
 
+    const handleUpdateItem = (index, updated) => {
+        const key = TYPE_KEY[manageMode] || 'cards';
+        const prev = deck[key] || [];
+        const newItems = prev.map((item, i) => i === index ? { ...item, ...updated } : item);
+        onUpdateDeck({ ...deck, [key]: newItems });
+    };
+
 const handlePasteImport = (type, newCards) => {
         const key = TYPE_KEY[type] || 'cards';
         const existing = deck[key] || [];
@@ -1975,7 +2039,7 @@ Return ONLY valid JSON: [{
                     </div>
                 </div>
             </div>
-            {manageMode && <ManageModal type={manageMode} items={manageMode === 'flashcards' ? (deck.cards || []) : (manageMode === 'quiz' ? (deck.quiz || []) : (manageMode === 'saq' ? (deck.saqs || []) : (deck.exams || [])))} onClose={() => setManageMode(null)} onDeleteItem={handleDeleteItem} onDeleteAll={handleDeleteAll} />}
+            {manageMode && <ManageModal type={manageMode} items={manageMode === 'flashcards' ? (deck.cards || []) : (manageMode === 'quiz' ? (deck.quiz || []) : (manageMode === 'saq' ? (deck.saqs || []) : (deck.exams || [])))} onClose={() => setManageMode(null)} onDeleteItem={handleDeleteItem} onDeleteAll={handleDeleteAll} onUpdateItem={handleUpdateItem} />}
             {pasteMode && <PasteImportModal initialType={pasteMode} onClose={() => setPasteMode(null)} onImport={handlePasteImport} />}
             {analysisResult && <AnalysisModal analysis={analysisResult} type={pendingGenType} count={count} onConfirm={({ finalCount, emphasizedTopics }) => { setCount(finalCount); setAnalysisResult(null); handleGenerate(pendingGenType, emphasizedTopics); }} onClose={() => { setAnalysisResult(null); setPendingGenType(null); }} />}
         </div>
