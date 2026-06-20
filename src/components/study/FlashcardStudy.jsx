@@ -122,12 +122,12 @@ Return ONLY valid JSON: {"text": "..."}`;
                 {!isSRS && (<><button onClick={prevStandard} className="absolute left-0 p-3 bg-white rounded-full shadow hover:scale-110 transition z-10"><ChevronLeft/></button><button onClick={nextStandard} className="absolute right-0 p-3 bg-white rounded-full shadow hover:scale-110 transition z-10"><ChevronRight/></button></>)}
                 <div className="w-full max-w-2xl min-h-64 relative cursor-pointer" onClick={() => setFlipped(!flipped)}>
                     <div className="w-full grid relative shadow-2xl rounded-2xl" style={{ transformStyle: 'preserve-3d', transition: 'transform 0.6s', transform: flipped ? 'rotateY(180deg)' : 'rotateY(0deg)' }}>
-                        <div className="row-start-1 col-start-1 w-full min-h-64 relative bg-white rounded-2xl backface-hidden flex flex-col items-center justify-center p-8 border" style={{ backfaceVisibility: 'hidden' }}>
+                        <div className="w-full min-h-64 relative bg-white rounded-2xl backface-hidden flex flex-col items-center justify-center p-8 border" style={{ backfaceVisibility: 'hidden', gridArea: '1/1/2/2' }}>
                             <span className={`absolute top-6 right-6 px-3 py-1 rounded-full text-xs font-bold border ${status.color}`}>{status.label}</span>
                             <div className="text-2xl font-medium text-center"><FormattedText text={currentCard.q}/></div>
                             <div className="absolute bottom-6 text-slate-400 text-sm animate-pulse">Click to Flip</div>
                         </div>
-                        <div className="row-start-1 col-start-1 w-full min-h-64 relative bg-indigo-600 rounded-2xl backface-hidden flex flex-col items-center justify-center p-8 text-white" style={{ backfaceVisibility: 'hidden', transform: 'rotateY(180deg)' }}>
+                        <div className="w-full min-h-64 relative bg-indigo-600 rounded-2xl backface-hidden flex flex-col items-center justify-center p-8 text-white" style={{ backfaceVisibility: 'hidden', transform: 'rotateY(180deg)', gridArea: '1/1/2/2' }}>
                             <div className="text-xl font-medium text-center"><FormattedText text={currentCard.a}/></div>
                             <div className="absolute bottom-6 flex gap-2" onClick={e => e.stopPropagation()}>
                                 <button onClick={() => getHelp('simplify')} disabled={loadingHelp} className="px-3 py-1 bg-white/20 hover:bg-white/30 rounded-full text-xs font-bold border border-white/10 flex items-center gap-1">{loadingHelp ? <RotateCw className="animate-spin" size={12}/> : null} Simplify</button>
