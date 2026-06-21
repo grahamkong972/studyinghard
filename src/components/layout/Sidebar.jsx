@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { GraduationCap, Settings, ChevronDown, ChevronRight, Folder, PieChart, Trash2, Edit2, Plus } from 'lucide-react';
+import { GraduationCap, Settings, ChevronDown, ChevronRight, Folder, PieChart, Trash2, Edit2, Plus, X } from 'lucide-react';
 
-const Sidebar = ({ user, folders, decks, activeId, viewMode, onSelectDeck, onSelectFolder, onAddFolder, onDeleteFolder, onRenameFolder, onAddDeck, onDeleteDeck, onSettings }) => {
+const Sidebar = ({ user, folders, decks, activeId, viewMode, onSelectDeck, onSelectFolder, onAddFolder, onDeleteFolder, onRenameFolder, onAddDeck, onDeleteDeck, onSettings, isOpen, onClose }) => {
     const [expandedFolders, setExpandedFolders] = useState({});
     const toggleFolder = (folderId) => setExpandedFolders(prev => ({ ...prev, [folderId]: !prev[folderId] }));
     useEffect(() => {
@@ -14,10 +14,13 @@ const Sidebar = ({ user, folders, decks, activeId, viewMode, onSelectDeck, onSel
     }, [activeId, viewMode, decks]);
 
     return (
-        <div className="w-full md:w-72 bg-slate-900 text-white flex flex-col h-screen fixed md:relative z-20 shadow-xl border-r border-slate-800">
+        <div className={`w-72 bg-slate-900 text-white flex flex-col h-screen fixed md:relative z-30 shadow-xl border-r border-slate-800 transition-transform duration-300 ${isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
             <div className="p-6 border-b border-slate-800 flex items-center justify-between shrink-0">
                 <h1 className="font-bold text-lg flex items-center gap-2 truncate"><GraduationCap className="text-indigo-400 flex-shrink-0" /> <span className="truncate">{user?.email || 'Guest'}</span></h1>
-                <button onClick={onSettings} className="hover:text-indigo-400 transition"><Settings size={18}/></button>
+                <div className="flex items-center gap-1">
+                    <button onClick={onSettings} className="hover:text-indigo-400 transition"><Settings size={18}/></button>
+                    <button onClick={onClose} className="md:hidden hover:text-indigo-400 transition ml-1"><X size={18}/></button>
+                </div>
             </div>
             <div className="flex-1 overflow-y-auto custom-scroll p-4 space-y-6">
                 {folders.map(folder => (
@@ -35,12 +38,12 @@ const Sidebar = ({ user, folders, decks, activeId, viewMode, onSelectDeck, onSel
                         </div>
                         {expandedFolders[folder.id] && (
                             <div className="pl-6 space-y-1 border-l-2 border-slate-800 ml-2.5 transition-all">
-                                <div onClick={() => onSelectFolder(folder.id)} className={`group flex items-center gap-2 px-3 py-2 rounded-md cursor-pointer transition-all mb-1 ${viewMode === 'folder' && activeId === folder.id ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'}`}>
+                                <div onClick={() => { onSelectFolder(folder.id); onClose(); }} className={`group flex items-center gap-2 px-3 py-2 rounded-md cursor-pointer transition-all mb-1 ${viewMode === 'folder' && activeId === folder.id ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'}`}>
                                     <PieChart size={14} />
                                     <div className="truncate text-xs font-medium">Course Overview</div>
                                 </div>
                                 {decks.filter(d => d.folderId === folder.id).map(deck => (
-                                    <div key={deck.id} onClick={() => onSelectDeck(deck.id)} className={`group flex items-center justify-between px-3 py-2 rounded-md cursor-pointer transition-all ${viewMode === 'deck' && activeId === deck.id ? 'bg-indigo-600/20 text-indigo-300 border border-indigo-500/30' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'}`}>
+                                    <div key={deck.id} onClick={() => { onSelectDeck(deck.id); onClose(); }} className={`group flex items-center justify-between px-3 py-2 rounded-md cursor-pointer transition-all ${viewMode === 'deck' && activeId === deck.id ? 'bg-indigo-600/20 text-indigo-300 border border-indigo-500/30' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'}`}>
                                         <div className="truncate text-xs font-medium">{deck.title}</div>
                                         <button onClick={(e) => { e.stopPropagation(); onDeleteDeck(deck.id); }} className={`opacity-0 group-hover:opacity-100 hover:text-red-400 transition ${viewMode === 'deck' && activeId === deck.id ? 'opacity-100' : ''}`}><Trash2 size={12} /></button>
                                     </div>

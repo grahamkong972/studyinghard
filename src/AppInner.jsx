@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { BookOpen, RotateCw, X, LogOut } from 'lucide-react';
+import { BookOpen, RotateCw, X, LogOut, Menu } from 'lucide-react';
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { doc, onSnapshot, updateDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db } from './firebase/firebaseConfig';
@@ -25,6 +25,7 @@ function AppInner() {
     const [viewMode, setViewMode] = useState('deck');
     const [activeId, setActiveId] = useState(null);
     const [showSettings, setShowSettings] = useState(false);
+    const [sidebarOpen, setSidebarOpen] = useState(false);
     const [nameModal, setNameModal] = useState({ isOpen: false, type: '', folder: null, value: '' });
     const hasInitializedActiveId = useRef(false);
 
@@ -209,6 +210,7 @@ function AppInner() {
     return (
         <div className="flex h-screen bg-[#f8fafc] font-sans text-slate-900">
             <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" />
+            {sidebarOpen && <div className="md:hidden fixed inset-0 bg-black/50 z-20" onClick={() => setSidebarOpen(false)} />}
             <Sidebar
                 user={user} folders={folders} decks={decks} activeId={activeId} viewMode={viewMode}
                 onSelectDeck={(id) => { setViewMode('deck'); setActiveId(id); if(decks.find(d=>d.id===id)) updateDeck({...decks.find(d=>d.id===id), mode: 'dashboard'}); }}
@@ -216,8 +218,13 @@ function AppInner() {
                 onAddFolder={openAddFolder} onDeleteFolder={deleteFolder} onRenameFolder={openRenameFolder}
                 onAddDeck={addDeck} onDeleteDeck={deleteDeck}
                 onSettings={() => setShowSettings(true)}
+                isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)}
             />
             <main className="flex-1 overflow-y-auto custom-scroll relative bg-[#f8fafc]">
+                <div className="md:hidden sticky top-0 z-10 bg-white border-b border-slate-200 px-4 py-3 flex items-center gap-3 shrink-0">
+                    <button onClick={() => setSidebarOpen(true)} className="text-slate-600 hover:text-slate-900"><Menu size={22}/></button>
+                    <span className="font-bold text-slate-800">KonDeck</span>
+                </div>
                 {viewMode === 'folder' && activeFolder && <FolderDashboard folder={activeFolder} decks={decks.filter(d => d.folderId === activeFolder.id)} onUpdateFolder={updateFolder} onUpdateDeck={updateDeck} userProfile={userProfile} />}
                 {viewMode === 'deck' && activeDeck && (
                     <>
