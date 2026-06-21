@@ -10,6 +10,7 @@ import AuthPage from './components/auth/AuthPage';
 import Sidebar from './components/layout/Sidebar';
 import NameModal from './components/modals/NameModal';
 import FlashcardStudy from './components/study/FlashcardStudy';
+import ClozeStudy from './components/study/ClozeStudy';
 import ExamRunner from './components/study/ExamRunner';
 import SAQMode from './components/study/SAQMode';
 import ModuleDashboard from './views/ModuleDashboard';
@@ -230,6 +231,7 @@ function AppInner() {
                     <>
                         {activeDeck.mode === 'dashboard' && <ModuleDashboard deck={activeDeck} onUpdateDeck={updateDeck} userProfile={userProfile} onUpdateProfile={updateProfile} />}
                         {activeDeck.mode === 'flashcards' && <FlashcardStudy cards={activeDeck.cards || []} deck={activeDeck} onUpdateDeck={updateDeck} onBack={() => updateDeck({...activeDeck, mode: 'dashboard'})} />}
+                        {activeDeck.mode === 'cloze' && <ClozeStudy cards={activeDeck.clozes || []} deck={activeDeck} onUpdateDeck={updateDeck} onBack={() => updateDeck({...activeDeck, mode: 'dashboard'})} />}
                         {/* Using 'quiz' mode for practice, 'exam' mode passes special prop */}
                         {activeDeck.mode === 'quiz' && <ExamRunner questions={activeDeck.quiz || []} deck={activeDeck} onBack={() => updateDeck({...activeDeck, mode: 'dashboard'})} userProfile={userProfile} practice={true} onRecordResult={(r) => updateDeck({...activeDeck, stats: {...(activeDeck.stats||{}), lastStudied: r.date, examHistory: [...((activeDeck.stats?.examHistory||[]).slice(-9)), r]}})} onWeakAreas={handleWeakAreas} />}
                         {activeDeck.mode === 'exam' && <ExamRunner questions={activeDeck.exams || []} timeLimit={activeDeck.examTimeLimit || 0} deck={activeDeck} onBack={() => updateDeck({...activeDeck, mode: 'dashboard'})} userProfile={userProfile} onRecordResult={(r) => updateDeck({...activeDeck, stats: {...(activeDeck.stats||{}), lastStudied: r.date, examHistory: [...((activeDeck.stats?.examHistory||[]).slice(-9)), r]}})} onWeakAreas={handleWeakAreas} />}

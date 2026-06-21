@@ -47,6 +47,19 @@ export const validateAndFixData = (data, type) => {
                 marks: typeof item.marks === 'number' ? item.marks : 5
             };
         }
+        if (type === 'cloze') {
+            return {
+                id: item.id || Math.random().toString(36).substr(2, 9),
+                text: String(item.text || ''),
+                blanks: Array.isArray(item.blanks)
+                    ? item.blanks.map(b => ({ answer: String(b.answer || ''), hint: String(b.hint || '') }))
+                    : [],
+                nextReview: item.nextReview || null,
+                ease: item.ease || 2.5,
+                interval: item.interval || 0,
+                step: item.step || 0
+            };
+        }
         return item;
     }).filter(item => item);
 };

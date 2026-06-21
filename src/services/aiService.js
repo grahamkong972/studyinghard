@@ -87,6 +87,12 @@ export const generateContent = async (prompt, context, systemInstruction, attach
         - "q": Hard, scenario-based question. Max 30 words.
         - "options": Exactly 4 options, each under 15 words, highly distinguishable.
         - "exp": Exactly 1-2 sentences — WHY correct answer is right and top distractor is wrong.`,
+        cloze: `CLOZE OUTPUT CONSTRAINTS (MANDATORY):
+        - "text": 1-2 sentences with [BLANK] where key terms are removed. Max 50 words.
+        - "blanks": array of {"answer": "...", "hint": "..."} in the order [BLANK] appears. 1-3 blanks per card.
+        - Blank out KEY TERMS/CONCEPTS only — not filler words.
+        - Remaining text must give enough context to recall the answer.
+        - "hint": empty string "" if no hint needed.`,
     };
     const fullSystemPrompt = `
         You are KonDeck, an advanced AI tutor. Be concise and precise.
@@ -100,7 +106,7 @@ export const generateContent = async (prompt, context, systemInstruction, attach
         5. Use MARKDOWN for text formatting (e.g. **bold**).
         6. Use LaTeX ($...$) ONLY for mathematical formulas.
     `;
-    const maxTokensByType = { flashcards: 800, mcq: 1200, saq: 1000, exam: 1200 };
+    const maxTokensByType = { flashcards: 800, mcq: 1200, saq: 1000, exam: 1200, cloze: 900 };
 
     const contentsPart = [];
     if (context) contentsPart.push({ text: `CONTEXT:\n${context}` });

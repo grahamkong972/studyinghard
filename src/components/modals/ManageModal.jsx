@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, BookOpen, Brain, PenTool, Edit2, Trash2 } from 'lucide-react';
+import { X, BookOpen, Brain, PenTool, Edit2, Trash2, FileText } from 'lucide-react';
 import { getCardStatus } from '../../utils/cardUtils';
 import FormattedText from '../FormattedText';
 
@@ -9,7 +9,7 @@ const ManageModal = ({ type, items, onClose, onDeleteItem, onDeleteAll, onUpdate
     const [editDraft, setEditDraft] = useState({});
 
     const filtered = search.trim()
-        ? items.map((item, i) => ({ item, i })).filter(({ item }) => item.q?.toLowerCase().includes(search.toLowerCase()))
+        ? items.map((item, i) => ({ item, i })).filter(({ item }) => (item.q || item.text)?.toLowerCase().includes(search.toLowerCase()))
         : items.map((item, i) => ({ item, i }));
 
     const openEdit = (i, item) => { setEditingIndex(i); setEditDraft({ ...item, options: item.options ? [...item.options] : [] }); };
@@ -23,8 +23,8 @@ const ManageModal = ({ type, items, onClose, onDeleteItem, onDeleteAll, onUpdate
             <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col">
                 <div className="flex justify-between items-center p-6 border-b">
                     <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2">
-                        {type === 'flashcards' ? <BookOpen className="text-indigo-500"/> : (type === 'saq' ? <PenTool className="text-purple-500"/> : <Brain className="text-emerald-500"/>)}
-                        Manage {type === 'flashcards' ? 'Flashcards' : (type === 'saq' ? 'SAQs' : 'Quiz Questions')}
+                        {type === 'flashcards' ? <BookOpen className="text-indigo-500"/> : (type === 'saq' ? <PenTool className="text-purple-500"/> : type === 'cloze' ? <FileText className="text-cyan-500"/> : <Brain className="text-emerald-500"/>)}
+                        Manage {type === 'flashcards' ? 'Flashcards' : (type === 'saq' ? 'SAQs' : type === 'cloze' ? 'Cloze Cards' : 'Quiz Questions')}
                     </h3>
                     <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition"><X size={24}/></button>
                 </div>
@@ -92,9 +92,9 @@ const ManageModal = ({ type, items, onClose, onDeleteItem, onDeleteAll, onUpdate
                                                 {type === 'flashcards' && item.nextReview && <div className={`w-2 h-2 rounded-full ${getCardStatus(item).color.replace('text-', 'bg-').split(' ')[0]}`} title={getCardStatus(item).label}></div>}
                                             </div>
                                             <div className="flex-1 text-sm text-slate-700">
-                                                <div className="font-medium mb-1"><FormattedText text={item.q} /></div>
+                                                <div className="font-medium mb-1"><FormattedText text={item.q || item.text} /></div>
                                                 <div className="text-xs text-slate-500 line-clamp-1 opacity-70">
-                                                    {type === 'flashcards' ? <FormattedText text={item.a} /> : (type === 'saq' ? 'Model Answer Provided' : 'Multiple Choice')}
+                                                    {type === 'flashcards' ? <FormattedText text={item.a} /> : type === 'cloze' ? `${item.blanks?.length || 0} blank${item.blanks?.length !== 1 ? 's' : ''}` : (type === 'saq' ? 'Model Answer Provided' : 'Multiple Choice')}
                                                 </div>
                                             </div>
                                             <button onClick={() => openEdit(i, item)} className="text-slate-400 hover:text-indigo-500 p-1 opacity-0 group-hover:opacity-100 transition" title="Edit"><Edit2 size={15}/></button>

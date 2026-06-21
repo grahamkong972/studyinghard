@@ -123,12 +123,12 @@ Rules:
         const currentInputs = { ...inputs };
 
         try {
-            const targetKey = type === 'flashcards' ? 'cards' : (type === 'saq' ? 'saqs' : 'quiz');
+            const targetKey = TYPE_KEY[type] || 'quiz';
 
             // Build deduplication list from existing deck items (injected into prompt, not context)
             const existingItems = deck[targetKey] || [];
             const existingSummary = existingItems.length > 0
-                ? `\n\nDO NOT REPEAT — ALREADY IN DECK:\n${existingItems.map(c => `- ${c.q}`).join('\n')}`
+                ? `\n\nDO NOT REPEAT — ALREADY IN DECK:\n${existingItems.map(c => `- ${c.q || c.text}`).join('\n')}`
                 : '';
 
             const fullContext = `MODULE: ${deck.title}\nNOTES: ${currentInputs.notes}`;
@@ -157,7 +157,7 @@ Rules:
 
                 // Dedup: questions generated so far this session
                 const sessionSummary = accumulatedResults.length > 0
-                    ? `\n\nDO NOT REPEAT — ALREADY GENERATED THIS SESSION:\n${accumulatedResults.map(c => `- ${c.q}`).join('\n')}`
+                    ? `\n\nDO NOT REPEAT — ALREADY GENERATED THIS SESSION:\n${accumulatedResults.map(c => `- ${c.q || c.text}`).join('\n')}`
                     : '';
 
                 // Both dedup lists go at the END of the prompt so the model sees them last
@@ -262,6 +262,18 @@ Return ONLY valid JSON: [{
   "model": "...",
   "marks": 5
 }]`;
+                } else if (type === "cloze") {
+                    prompt = `Generate exactly ${currentBatchCount} cloze (fill-in-the-blank) cards from the provided context.
+${dedupBlock}${emphasisBlock}
+STRICT RULES:
+1. Put [BLANK] in "text" where a key term is removed. 1-3 blanks per card.
+2. "blanks" array lists {"answer":"...","hint":"..."} in the ORDER [BLANK] appears.
+3. Blank out KEY TERMS, definitions, mechanisms, or values — not filler words.
+4. Enough context must remain in the sentence to recall the answer.
+5. Every card tests a DIFFERENT concept. No repeats.
+6. "hint": use "" if no hint needed. Only add a hint if the answer is genuinely subtle.
+
+Return ONLY valid JSON: [{"text":"The [BLANK] is responsible for...","blanks":[{"answer":"mitochondria","hint":""}]}]`;
                 }
 
                 try {
@@ -350,6 +362,7 @@ Return ONLY valid JSON: [{
                             <button onClick={() => handleClickGenerate('flashcards')} disabled={isGenerating || isAnalysing} className="flex-1 sm:flex-none bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg transition flex items-center justify-center gap-2 disabled:opacity-70 shadow-sm text-sm">{isAnalysing && genType==='flashcards' ? <RotateCw className="animate-spin" size={16}/> : isGenerating && genType==='flashcards' ? <RotateCw className="animate-spin" size={16}/> : <Sparkles size={16}/>} {isAnalysing && genType==='flashcards' ? 'Analysing...' : isGenerating && genType==='flashcards' ? statusMessage : 'Cards'}</button>
                             <button onClick={() => handleClickGenerate('mcq')} disabled={isGenerating || isAnalysing} className="flex-1 sm:flex-none bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-4 rounded-lg transition flex items-center justify-center gap-2 disabled:opacity-70 shadow-sm text-sm">{isAnalysing && genType==='mcq' ? <RotateCw className="animate-spin" size={16}/> : isGenerating && genType==='mcq' ? <RotateCw className="animate-spin" size={16}/> : <Brain size={16}/>} {isAnalysing && genType==='mcq' ? 'Analysing...' : isGenerating && genType==='mcq' ? statusMessage : 'Quiz'}</button>
                             <button onClick={() => handleClickGenerate('saq')} disabled={isGenerating || isAnalysing} className="flex-1 sm:flex-none bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg transition flex items-center justify-center gap-2 disabled:opacity-70 shadow-sm text-sm">{isAnalysing && genType==='saq' ? <RotateCw className="animate-spin" size={16}/> : isGenerating && genType==='saq' ? <RotateCw className="animate-spin" size={16}/> : <PenTool size={16}/>} {isAnalysing && genType==='saq' ? 'Analysing...' : isGenerating && genType==='saq' ? statusMessage : 'SAQ'}</button>
+                            <button onClick={() => handleClickGenerate('cloze')} disabled={isGenerating || isAnalysing} className="flex-1 sm:flex-none bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-2 px-4 rounded-lg transition flex items-center justify-center gap-2 disabled:opacity-70 shadow-sm text-sm">{isAnalysing && genType==='cloze' ? <RotateCw className="animate-spin" size={16}/> : isGenerating && genType==='cloze' ? <RotateCw className="animate-spin" size={16}/> : <FileText size={16}/>} {isAnalysing && genType==='cloze' ? 'Analysing...' : isGenerating && genType==='cloze' ? statusMessage : 'Cloze'}</button>
                             {isGenerating && <button onClick={() => { cancelRef.current = true; }} className="px-3 py-2 bg-slate-200 hover:bg-red-100 hover:text-red-600 text-slate-500 font-bold rounded-lg transition text-sm flex items-center gap-1" title="Cancel generation"><X size={16}/></button>}
                         </div>
                     </div>
@@ -411,6 +424,11 @@ Return ONLY valid JSON: [{
                                     <div className="text-lg font-bold text-purple-600">{deck.saqs?.length || 0}</div>
                                     <div className="text-[10px] text-purple-400 font-bold uppercase">SAQs</div>
                                 </div>
+                                <div className="flex-1 bg-cyan-50 rounded-lg p-2 border border-cyan-100 relative group">
+                                    <button onClick={() => setManageMode('cloze')} className="absolute top-1 right-1 text-slate-300 hover:text-slate-500 opacity-0 group-hover:opacity-100 transition" title="Manage"><Edit3 size={11}/></button>
+                                    <div className="text-lg font-bold text-cyan-600">{deck.clozes?.length || 0}</div>
+                                    <div className="text-[10px] text-cyan-400 font-bold uppercase">Cloze</div>
+                                </div>
                             </div>
                             {/* Last studied + total reviews */}
                             <div className="flex justify-between text-xs text-slate-400 pt-1 border-t border-slate-100">
@@ -452,11 +470,12 @@ Return ONLY valid JSON: [{
                         <div className="bg-white p-4 rounded-xl border border-slate-200 space-y-2">
                             <button onClick={() => onUpdateDeck({...deck, mode: 'quiz', quizMode: 'practice'})} disabled={!deck.quiz?.length} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2 transition disabled:opacity-50 disabled:cursor-not-allowed"><Brain size={18}/> Practice Quiz</button>
                             <button onClick={() => onUpdateDeck({...deck, mode: 'saq'})} disabled={!deck.saqs?.length} className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2 transition disabled:opacity-50 disabled:cursor-not-allowed"><PenTool size={18}/> Practice SAQs</button>
+                            <button onClick={() => onUpdateDeck({...deck, mode: 'cloze'})} disabled={!deck.clozes?.length} className="w-full bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2 transition disabled:opacity-50 disabled:cursor-not-allowed"><FileText size={18}/> Practice Cloze</button>
                         </div>
                     </div>
                 </div>
             </div>
-            {manageMode && <ManageModal type={manageMode} items={manageMode === 'flashcards' ? (deck.cards || []) : (manageMode === 'quiz' ? (deck.quiz || []) : (manageMode === 'saq' ? (deck.saqs || []) : (deck.exams || [])))} onClose={() => setManageMode(null)} onDeleteItem={handleDeleteItem} onDeleteAll={handleDeleteAll} onUpdateItem={handleUpdateItem} />}
+            {manageMode && <ManageModal type={manageMode} items={deck[TYPE_KEY[manageMode] || 'cards'] || []} onClose={() => setManageMode(null)} onDeleteItem={handleDeleteItem} onDeleteAll={handleDeleteAll} onUpdateItem={handleUpdateItem} />}
             {pasteMode && <PasteImportModal initialType={pasteMode} onClose={() => setPasteMode(null)} onImport={handlePasteImport} />}
             {analysisResult && <AnalysisModal analysis={analysisResult} type={pendingGenType} count={count} onConfirm={({ finalCount, emphasizedTopics }) => { setCount(finalCount); setAnalysisResult(null); handleGenerate(pendingGenType, emphasizedTopics); }} onClose={() => { setAnalysisResult(null); setPendingGenType(null); }} />}
         </div>
