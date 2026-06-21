@@ -3,6 +3,8 @@ import { BookOpen, RotateCw, X, LogOut } from 'lucide-react';
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { doc, onSnapshot, updateDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db } from './firebase/firebaseConfig';
+import { generateContent } from './services/aiService';
+import { validateAndFixData } from './utils/cardUtils';
 import { useToast } from './context/ToastContext';
 import AuthPage from './components/auth/AuthPage';
 import Sidebar from './components/layout/Sidebar';
@@ -144,6 +146,53 @@ function AppInner() {
         alert("Upgrade successful! Welcome to KonDeck Pro. Your credits have been boosted to 500/month.");
     };
 
+    const handleWeakAreas = async (wrongQs) => {
+        const deck = activeDeck;
+        const cards = deck.cards || [];
+        const n = Math.min(wrongQs.length * 2, 8);
+        const wrongList = wrongQs.map(q => `- ${q.q}`).join('\n');
+
+        const generateFocused = async () => {
+            const prompt = `Generate ${n} flashcards targeting ONLY the topics in these questions a student got wrong:\n${wrongList}\nReturn ONLY valid JSON: [{"q":"...","a":"..."}]`;
+            const result = await generateContent(prompt, deck.notes || '', '');
+            if (!Array.isArray(result)) return [];
+            return validateAndFixData(result, 'flashcards');
+        };
+
+        if (cards.length === 0) {
+            toast('Generating flashcards for your weak areas...', 'info');
+            const newCards = await generateFocused();
+            updateDeck({ ...deck, cards: newCards, mode: 'flashcards' });
+            return;
+        }
+
+        const cardSlice = cards.slice(0, 100);
+        const matchPrompt = `These are MCQ questions a student got wrong:\n${wrongList}\n\nThese are flashcards (index: question):\n${cardSlice.map((c, i) => `${i}: ${c.q}`).join('\n')}\n\nReturn a JSON array of integer indices for flashcards topically related to any wrong question. Return [] if none match.`;
+        const matched = await generateContent(matchPrompt, '', '', null, 1, 'match');
+
+        const relatedIndices = Array.isArray(matched)
+            ? matched.filter(i => Number.isInteger(i) && i >= 0 && i < cards.length)
+            : [];
+
+        if (relatedIndices.length > 0) {
+            const now = Date.now();
+            const relatedSet = new Set(relatedIndices);
+            const reordered = [
+                ...cards.filter((_, i) => relatedSet.has(i)).map(c => ({
+                    ...c,
+                    nextReview: c.nextReview && c.nextReview > now ? now - 1000 : c.nextReview
+                })),
+                ...cards.filter((_, i) => !relatedSet.has(i))
+            ];
+            toast(`${relatedIndices.length} related flashcard${relatedIndices.length > 1 ? 's' : ''} moved to the front of your deck.`, 'success');
+            updateDeck({ ...deck, cards: reordered, mode: 'flashcards' });
+        } else {
+            toast('No matching flashcards found — generating new ones for your weak areas...', 'info');
+            const newCards = await generateFocused();
+            updateDeck({ ...deck, cards: [...newCards, ...cards], mode: 'flashcards' });
+        }
+    };
+
     const handleLogout = async () => {
         await signOut(auth);
         setShowSettings(false);
@@ -175,8 +224,8 @@ function AppInner() {
                         {activeDeck.mode === 'dashboard' && <ModuleDashboard deck={activeDeck} onUpdateDeck={updateDeck} userProfile={userProfile} onUpdateProfile={updateProfile} />}
                         {activeDeck.mode === 'flashcards' && <FlashcardStudy cards={activeDeck.cards || []} deck={activeDeck} onUpdateDeck={updateDeck} onBack={() => updateDeck({...activeDeck, mode: 'dashboard'})} />}
                         {/* Using 'quiz' mode for practice, 'exam' mode passes special prop */}
-                        {activeDeck.mode === 'quiz' && <ExamRunner questions={activeDeck.quiz || []} deck={activeDeck} onBack={() => updateDeck({...activeDeck, mode: 'dashboard'})} userProfile={userProfile} practice={true} onRecordResult={(r) => updateDeck({...activeDeck, stats: {...(activeDeck.stats||{}), lastStudied: r.date, examHistory: [...((activeDeck.stats?.examHistory||[]).slice(-9)), r]}})} />}
-                        {activeDeck.mode === 'exam' && <ExamRunner questions={activeDeck.exams || []} timeLimit={activeDeck.examTimeLimit || 0} deck={activeDeck} onBack={() => updateDeck({...activeDeck, mode: 'dashboard'})} userProfile={userProfile} onRecordResult={(r) => updateDeck({...activeDeck, stats: {...(activeDeck.stats||{}), lastStudied: r.date, examHistory: [...((activeDeck.stats?.examHistory||[]).slice(-9)), r]}})} />}
+                        {activeDeck.mode === 'quiz' && <ExamRunner questions={activeDeck.quiz || []} deck={activeDeck} onBack={() => updateDeck({...activeDeck, mode: 'dashboard'})} userProfile={userProfile} practice={true} onRecordResult={(r) => updateDeck({...activeDeck, stats: {...(activeDeck.stats||{}), lastStudied: r.date, examHistory: [...((activeDeck.stats?.examHistory||[]).slice(-9)), r]}})} onWeakAreas={handleWeakAreas} />}
+                        {activeDeck.mode === 'exam' && <ExamRunner questions={activeDeck.exams || []} timeLimit={activeDeck.examTimeLimit || 0} deck={activeDeck} onBack={() => updateDeck({...activeDeck, mode: 'dashboard'})} userProfile={userProfile} onRecordResult={(r) => updateDeck({...activeDeck, stats: {...(activeDeck.stats||{}), lastStudied: r.date, examHistory: [...((activeDeck.stats?.examHistory||[]).slice(-9)), r]}})} onWeakAreas={handleWeakAreas} />}
                         {activeDeck.mode === 'saq' && <SAQMode questions={activeDeck.saqs || []} onBack={() => updateDeck({...activeDeck, mode: 'dashboard'})} userProfile={userProfile} />}
                     </>
                 )}

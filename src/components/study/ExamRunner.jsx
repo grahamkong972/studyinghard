@@ -4,13 +4,14 @@ import { useToast } from '../../context/ToastContext';
 import { generateContent } from '../../services/aiService';
 import FormattedText from '../FormattedText';
 
-const ExamRunner = ({ questions, timeLimit, onBack, userProfile, practice = false, onRecordResult }) => {
+const ExamRunner = ({ questions, timeLimit, onBack, userProfile, practice = false, onRecordResult, onWeakAreas }) => {
     const toast = useToast();
     const [answers, setAnswers] = useState({});
     const [saqFeedback, setSaqFeedback] = useState({});
     const [submitted, setSubmitted] = useState(false);
     const [timeLeft, setTimeLeft] = useState(timeLimit ? timeLimit * 60 : 600);
     const [gradingLoading, setGradingLoading] = useState({});
+    const [weakAreasLoading, setWeakAreasLoading] = useState(false);
 
     useEffect(() => {
         if (practice) return;
@@ -39,6 +40,16 @@ const ExamRunner = ({ questions, timeLimit, onBack, userProfile, practice = fals
         if (answers[idx] === q.a) return acc + 1;
         return acc;
     }, 0);
+
+    const wrongQs = submitted ? questions.filter((q, i) => q.type !== 'saq' && answers[i] !== q.a) : [];
+    const allMcqAnswered = mcqQuestions.every((q) => answers[questions.indexOf(q)] !== undefined);
+
+    const handleWeakAreasClick = async () => {
+        setWeakAreasLoading(true);
+        try { await onWeakAreas(wrongQs); }
+        catch (e) { toast(e.message); }
+        finally { setWeakAreasLoading(false); }
+    };
 
     const gradeSAQ = async (index, userProfile) => {
         setGradingLoading(prev => ({ ...prev, [index]: true }));
@@ -71,6 +82,16 @@ const ExamRunner = ({ questions, timeLimit, onBack, userProfile, practice = fals
                     <div>
                         <h2 className="text-lg font-bold text-slate-800">MCQ Results</h2>
                         <p className="text-slate-500">You scored {mcqScore} / {mcqCount} on multiple choice.</p>
+                        {onWeakAreas && wrongQs.length > 0 && allMcqAnswered && (
+                            <button
+                                onClick={handleWeakAreasClick}
+                                disabled={weakAreasLoading}
+                                className="mt-3 flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold px-4 py-2 rounded-lg transition disabled:opacity-50"
+                            >
+                                {weakAreasLoading ? <RotateCw className="animate-spin" size={14}/> : <Sparkles size={14}/>}
+                                Study Weak Areas ({wrongQs.length} missed)
+                            </button>
+                        )}
                     </div>
                     <div className="text-right">
                         <div className="text-xs font-bold text-slate-400 uppercase">SAQ Review</div>
