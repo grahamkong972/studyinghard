@@ -36,7 +36,7 @@ export const validateAndFixData = (data, type) => {
                 q: String(item.q || "Error: Question missing"),
                 options: options,
                 a: (typeof item.a === 'number' && item.a < options.length) ? item.a : 0,
-                exp: (() => { const v = String(item.exp || 'No explanation provided.'); return v.length > 300 ? v.slice(0, 300) + '…' : v; })()
+                exp: String(item.exp || 'No explanation provided.')
             };
         }
         if (type === 'saq') {
